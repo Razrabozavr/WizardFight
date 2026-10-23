@@ -301,19 +301,19 @@ export class GameController {
     const wizard = this.state.wizards[0];
     if (wizard.dead) return;
 
-    const cauldronPos = { x: (4 + 0.5) * 32, y: (9 + 0.5) * 32 }; // playerCauldron
-    const dx = wizard.position.x - cauldronPos.x;
-    const dy = wizard.position.y - cauldronPos.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist > 48) return; // Не у котла
-
     if (this.state.phase === 'cauldronUI') {
-      // Закрыть интерфейс
+      // Закрыть интерфейс (всегда разрешено)
       this.state.phase = 'playing';
       this.callbacks.onScreenChange('playing');
     } else if (this.state.phase === 'playing') {
-      // Открыть интерфейс
+      // Открыть интерфейс (только у котла)
+      const cauldronPos = { x: (4 + 0.5) * 32, y: (9 + 0.5) * 32 }; // playerCauldron
+      const dx = wizard.position.x - cauldronPos.x;
+      const dy = wizard.position.y - cauldronPos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > 48) return; // Не у котла - не открываем
+
       this.state.phase = 'cauldronUI';
       this.updateCauldronUI();
       this.callbacks.onScreenChange('cauldronUI');
@@ -425,20 +425,7 @@ export class GameController {
     this.callbacks.onScreenChange('playing');
   }
 
-  // Проверить, нужно ли закрыть интерфейс котла (отошли от котла)
-  private checkCauldronDistance(): void {
-    if (!this.state || this.state.phase !== 'cauldronUI') return;
-    const wizard = this.state.wizards[0];
-    const cauldronPos = { x: (4 + 0.5) * 32, y: (9 + 0.5) * 32 };
-    const dx = wizard.position.x - cauldronPos.x;
-    const dy = wizard.position.y - cauldronPos.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist > 48) {
-      this.state.phase = 'playing';
-      this.callbacks.onScreenChange('playing');
-    }
-  }
+  // Проверка расстояния убрана - интерфейс закрывается только по F
 
   private gameLoop = (): void => {
     if (!this.running) return;
@@ -459,15 +446,15 @@ export class GameController {
       return;
     }
 
-    if (this.state.phase === 'playing' || this.state.phase === 'cauldronUI') {
+    // Read inputs once per frame
+    const playerInput = this.state ? this.localInput.read(this.state.tick) : { move: 'none' as const, cast: false, interact: false, nextSlot: false, prevSlot: false, selectSlot: null, cancel: false, pause: false, confirm: false, back: false };
+    const aiInputFrame = this.state ? this.aiInput.readWithState(this.state.tick, this.state) : { move: 'none' as const, cast: false, interact: false, nextSlot: false, prevSlot: false, selectSlot: null, cancel: false, pause: false, confirm: false, back: false };
+
+    if (this.state && (this.state.phase === 'playing' || this.state.phase === 'cauldronUI')) {
       this.accumulator += frameTime;
       let steps = 0;
       while (this.accumulator >= STEP && steps < 5) {
         this.accumulator -= STEP;
-
-        // Read inputs
-        const playerInput = this.localInput.read(this.state.tick);
-        const aiInputFrame = this.aiInput.readWithState(this.state.tick, this.state);
 
         // Edge triggers only on first step
         if (steps > 0) {
@@ -495,12 +482,11 @@ export class GameController {
         }
 
         // В режиме cauldronUI игрок не может двигаться/кастовать
+        // НО prevSlot/nextSlot нужны для навигации по рецептам
+        // И interact нужен для закрытия интерфейса, поэтому не обнуляем их
         if (this.state.phase === 'cauldronUI') {
           playerInput.move = 'none';
           playerInput.cast = false;
-          playerInput.interact = false;
-          playerInput.nextSlot = false;
-          playerInput.prevSlot = false;
           playerInput.selectSlot = null;
         }
 
@@ -530,30 +516,23 @@ export class GameController {
       }
     }
 
-    // Handle cauldron UI input
-    if (this.state.phase === 'cauldronUI') {
-      const input = this.localInput.read(this.state.tick);
-
-      // Проверить расстояние до котла
-      this.checkCauldronDistance();
-
-      if (this.state.phase === 'cauldronUI') {
-        // Навигация по рецептам
-        if (input.move === 'left' || input.prevSlot) {
-          this.selectCauldronRecipe('prev');
-        }
-        if (input.move === 'right' || input.nextSlot) {
-          this.selectCauldronRecipe('next');
-        }
-        // Space - приготовить заклинание
-        if (input.cast) {
-          this.craftSelectedSpell();
-        }
-        // F - закрыть интерфейс
-        if (input.interact) {
-          this.state.phase = 'playing';
-          this.callbacks.onScreenChange('playing');
-        }
+    // Handle cauldron UI input (используем тот же playerInput)
+    if (this.state && this.state.phase === 'cauldronUI') {
+      // Q/E - навигация по рецептам
+      if (playerInput.prevSlot) {
+        this.selectCauldronRecipe('prev');
+      }
+      if (playerInput.nextSlot) {
+        this.selectCauldronRecipe('next');
+      }
+      // Space - приготовить заклинание
+      if (playerInput.cast) {
+        this.craftSelectedSpell();
+      }
+      // F - закрыть интерфейс
+      if (playerInput.interact) {
+        this.state.phase = 'playing';
+        this.callbacks.onScreenChange('playing');
       }
     }
 
