@@ -91,27 +91,7 @@ function App() {
       if (screen === 'paused') {
         if (e.key === 'Escape' || e.key === 'Enter') { gameRef.current?.resume(); e.preventDefault(); }
       }
-      if (screen === 'cauldronUI') {
-        // Навигация по рецептам
-        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') {
-          gameRef.current?.selectCauldronRecipe('prev');
-          e.preventDefault();
-        }
-        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D' || e.key === 'в' || e.key === 'В') {
-          gameRef.current?.selectCauldronRecipe('next');
-          e.preventDefault();
-        }
-        // Space - приготовить заклинание
-        if (e.key === ' ') {
-          gameRef.current?.craftSelectedSpell();
-          e.preventDefault();
-        }
-        // F - закрыть интерфейс
-        if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
-          gameRef.current?.toggleCauldronUI();
-          e.preventDefault();
-        }
-      }
+      // Обработка клавиш для cauldronUI происходит в gameController.ts
       if (showSettings) {
         if (e.key === 'Escape') setShowSettings(false);
       }
@@ -221,7 +201,7 @@ function App() {
               </div>
             </div>
 
-            <div className="controls-hint">F — котёл | Space — каст/приготовить | Esc — пауза</div>
+            <div className="controls-hint">F — котёл | Q/E — выбор/слоты | Space — каст/приготовить | Esc — пауза</div>
           </div>
         )}
 
@@ -312,7 +292,7 @@ function App() {
             )}
 
             <div style={{ fontSize: '11px', color: '#888', marginTop: '16px', textAlign: 'center' }}>
-              ← → выбор | Space — приготовить | F — закрыть
+              Q/E — выбор | Space — приготовить | F — закрыть
             </div>
           </div>
         )}
@@ -410,8 +390,7 @@ function App() {
                 <div>WASD / Стрелки — движение</div>
                 <div>Space — каст заклинания / приготовить</div>
                 <div>F — открыть/закрыть котёл</div>
-                <div>← → (в котле) — выбор рецепта</div>
-                <div>Q / E — предыдущий / следующий слот</div>
+                <div>Q / E — выбор рецепта (в котле) или слота</div>
                 <div>1 / 2 / 3 — прямой выбор слота</div>
                 <div>Esc — пауза</div>
                 <div>F3 — отладочная сетка</div>
