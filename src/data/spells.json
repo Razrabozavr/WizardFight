@@ -1,0 +1,8 @@
+{
+  "spells": [
+    { "id": "fireball", "displayName": "Огненный шар", "type": "attack", "power": 22, "cooldown": 1.4, "castTime": 0, "projectileSpeed": 320, "projectileRadius": 6, "range": 12, "damageReduction": 0, "color": "#ff6633", "priority": 1 },
+    { "id": "frostbolt", "displayName": "Ледяная стрела", "type": "attack", "power": 14, "cooldown": 0.9, "castTime": 0, "projectileSpeed": 360, "projectileRadius": 5, "range": 10, "damageReduction": 0, "color": "#66ccff", "priority": 2 },
+    { "id": "heal", "displayName": "Исцеление", "type": "heal", "power": 25, "cooldown": 6.0, "castTime": 0, "projectileSpeed": 0, "projectileRadius": 0, "range": 0, "damageReduction": 0, "color": "#66ff66", "priority": 3 },
+    { "id": "shield", "displayName": "Щит", "type": "defense", "power": 4, "cooldown": 8.0, "castTime": 0, "projectileSpeed": 0, "projectileRadius": 0, "range": 0, "damageReduction": 0.5, "color": "#ffcc00", "priority": 4 }
+  ]
+}

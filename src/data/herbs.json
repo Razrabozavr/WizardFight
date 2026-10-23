@@ -1,0 +1,7 @@
+{
+  "herbs": [
+    { "id": "fire", "displayName": "Огненный цветок", "color": "#e2603f", "shape": "flower", "spawnWeight": 5 },
+    { "id": "moon", "displayName": "Лунный лист", "color": "#5aa9e6", "shape": "leaf", "spawnWeight": 4 },
+    { "id": "stone", "displayName": "Каменный корень", "color": "#8fae72", "shape": "root", "spawnWeight": 3 }
+  ]
+}

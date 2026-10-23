@@ -1,0 +1,8 @@
+{
+  "recipes": [
+    { "id": "r_fireball", "resultSpell": "fireball", "ingredients": [{"herb": "fire", "amount": 2}, {"herb": "stone", "amount": 1}], "craftTime": 2.0, "priority": 1 },
+    { "id": "r_frostbolt", "resultSpell": "frostbolt", "ingredients": [{"herb": "moon", "amount": 2}, {"herb": "fire", "amount": 1}], "craftTime": 2.0, "priority": 2 },
+    { "id": "r_heal", "resultSpell": "heal", "ingredients": [{"herb": "moon", "amount": 2}, {"herb": "stone", "amount": 1}], "craftTime": 3.0, "priority": 3 },
+    { "id": "r_shield", "resultSpell": "shield", "ingredients": [{"herb": "stone", "amount": 2}, {"herb": "moon", "amount": 1}], "craftTime": 2.0, "priority": 4 }
+  ]
+}
