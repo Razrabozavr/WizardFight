@@ -449,6 +449,9 @@ export class GameController {
     // Read inputs once per frame
     const playerInput = this.state ? this.localInput.read(this.state.tick) : { move: 'none' as const, cast: false, interact: false, nextSlot: false, prevSlot: false, selectSlot: null, cancel: false, pause: false, confirm: false, back: false };
     const aiInputFrame = this.state ? this.aiInput.readWithState(this.state.tick, this.state) : { move: 'none' as const, cast: false, interact: false, nextSlot: false, prevSlot: false, selectSlot: null, cancel: false, pause: false, confirm: false, back: false };
+    
+    // Переменная для сохранения cast в режиме cauldronUI
+    let cauldronCast = false;
 
     if (this.state && (this.state.phase === 'playing' || this.state.phase === 'cauldronUI')) {
       this.accumulator += frameTime;
@@ -483,7 +486,9 @@ export class GameController {
 
         // В режиме cauldronUI игрок не может двигаться/кастовать
         // НО prevSlot/nextSlot нужны для навигации по рецептам
-        // И interact нужен для закрытия интерфейса, поэтому не обнуляем их
+        // И interact нужен для закрытия интерфейса
+        // Сохраняем cast для последующей обработки приготовления заклинания
+        cauldronCast = this.state.phase === 'cauldronUI' && playerInput.cast;
         if (this.state.phase === 'cauldronUI') {
           playerInput.move = 'none';
           playerInput.cast = false;
@@ -516,7 +521,7 @@ export class GameController {
       }
     }
 
-    // Handle cauldron UI input (используем тот же playerInput)
+    // Handle cauldron UI input (используем сохранённое значение cast)
     if (this.state && this.state.phase === 'cauldronUI') {
       // Q/E - навигация по рецептам
       if (playerInput.prevSlot) {
@@ -525,8 +530,8 @@ export class GameController {
       if (playerInput.nextSlot) {
         this.selectCauldronRecipe('next');
       }
-      // Space - приготовить заклинание
-      if (playerInput.cast) {
+      // Space - приготовить заклинание (используем сохранённое значение)
+      if (cauldronCast) {
         this.craftSelectedSpell();
       }
       // F - закрыть интерфейс

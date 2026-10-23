@@ -558,7 +558,8 @@ function checkWinCondition(state: GameState, bus: EventBus): void {
 
 // Main step function
 export function step(state: GameState, inputs: [InputFrame, InputFrame], grid: Grid, bus: EventBus, rng: Rng, dt: number = STEP): void {
-  if (state.phase !== 'playing') return;
+  // Разрешаем выполнение и в режиме cauldronUI (игра не ставится на паузу)
+  if (state.phase !== 'playing' && state.phase !== 'cauldronUI') return;
 
   state.tick++;
   const dtSec = dt;
