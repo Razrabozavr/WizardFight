@@ -596,20 +596,10 @@ export function step(state: GameState, inputs: [InputFrame, InputFrame], grid: G
         // Cancel craft
         cancelCraft(wizard, bus);
       } else if (isNearCauldron(wizard)) {
-        const available = getAvailableRecipes(wizard);
-        if (available.length === 1) {
-          startCraft(wizard, available[0], state, bus);
-        } else if (available.length > 1) {
-          if (wizard.id === 0) {
-            // Show recipe choice to player
-            state.phase = 'craftChoice';
-            state.craftChoiceWizard = 0;
-            state.craftChoiceOptions = available.map(r => r.id);
-            state.craftChoiceSelected = 0;
-            state.craftChoiceType = 'recipe';
-            bus.emit({ type: EVT.PHASE_CHANGED, data: { phase: 'craftChoice' } });
-          } else {
-            // AI picks by priority
+        // Только для ИИ - игрок использует интерфейс котла через gameController
+        if (wizard.id === 1) {
+          const available = getAvailableRecipes(wizard);
+          if (available.length > 0) {
             const best = available.reduce((a, b) => a.priority < b.priority ? a : b);
             startCraft(wizard, best, state, bus);
           }

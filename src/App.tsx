@@ -19,6 +19,7 @@ function App() {
   const [duration, setDuration] = useState(120);
   const [craftProgress, setCraftProgress] = useState<{ progress: number; duration: number } | null>(null);
   const [craftChoice, setCraftChoice] = useState<{ options: string[]; selected: number } | null>(null);
+  const [cauldronUI, setCauldronUI] = useState<{ available: string[]; unavailable: string[]; selected: number } | null>(null);
   const [result, setResult] = useState<{ result: MatchResult; stats: { hp: number; damage: number; herbs: number }[] } | null>(null);
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
   const [gcd, setGcd] = useState(0);
@@ -31,13 +32,18 @@ function App() {
   const initGame = useCallback(() => {
     if (!containerRef.current || gameRef.current) return;
     const gc = new GameController(containerRef.current, {
-      onScreenChange: (s) => { setScreen(s); },
+      onScreenChange: (s) => {
+        setScreen(s);
+        if (s !== 'cauldronUI') setCauldronUI(null);
+        if (s !== 'craftChoice') setCraftChoice(null);
+      },
       onHpChange: (id, hp, mhp) => { if (id === 0) setPlayerHp(hp); else setEnemyHp(hp); setMaxHp(mhp); },
       onSlotsChange: (s, a) => { setSlots(s); setActiveSlot(a); },
       onHerbsChange: (h) => setHerbs(h),
       onTimerChange: (t, m) => { setTimeLeft(t); setMatchMode(m); },
       onCraftProgress: (p, d) => { if (p === 0 && d === 0) setCraftProgress(null); else setCraftProgress({ progress: p, duration: d }); },
       onCraftChoice: (opts, sel) => setCraftChoice({ options: opts, selected: sel }),
+      onCauldronUI: (available, unavailable, selected) => setCauldronUI({ available, unavailable, selected }),
       onResult: (r, s) => { setResult({ result: r, stats: s }); setScreen('result'); },
       onCooldownChange: (c, g) => { setCooldowns(c); setGcd(g); },
       onShieldChange: (st) => setShieldTime(st),
@@ -84,6 +90,27 @@ function App() {
       }
       if (screen === 'paused') {
         if (e.key === 'Escape' || e.key === 'Enter') { gameRef.current?.resume(); e.preventDefault(); }
+      }
+      if (screen === 'cauldronUI') {
+        // Навигация по рецептам
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') {
+          gameRef.current?.selectCauldronRecipe('prev');
+          e.preventDefault();
+        }
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D' || e.key === 'в' || e.key === 'В') {
+          gameRef.current?.selectCauldronRecipe('next');
+          e.preventDefault();
+        }
+        // Space - приготовить заклинание
+        if (e.key === ' ') {
+          gameRef.current?.craftSelectedSpell();
+          e.preventDefault();
+        }
+        // F - закрыть интерфейс
+        if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
+          gameRef.current?.toggleCauldronUI();
+          e.preventDefault();
+        }
       }
       if (showSettings) {
         if (e.key === 'Escape') setShowSettings(false);
@@ -194,7 +221,7 @@ function App() {
               </div>
             </div>
 
-            <div className="controls-hint">F — варить у котла | Space — каст | Esc — пауза</div>
+            <div className="controls-hint">F — котёл | Space — каст/приготовить | Esc — пауза</div>
           </div>
         )}
 
@@ -208,32 +235,103 @@ function App() {
           </div>
         )}
 
-        {/* Craft choice dialog */}
-        {screen === 'playing' && craftChoice && (
+        {/* Cauldron UI - интерфейс котла */}
+        {screen === 'cauldronUI' && cauldronUI && (
           <div className="craft-choice">
-            <h3>{craftChoice.options[0] && getRecipe(craftChoice.options[0]) ? 'Выберите рецепт:' : 'Заменить слот?'}</h3>
-            <div className="craft-options">
-              {craftChoice.options.map((opt, i) => {
-                const recipe = getRecipe(opt);
-                const isSlotChoice = !recipe;
-                return (
-                  <div key={i} className={`craft-option ${i === craftChoice.selected ? 'selected' : ''}`}
-                    onClick={() => gameRef.current?.handleCraftChoice(i)}>
-                    {recipe ? (
-                      <>
-                        <div>{getSpell(recipe.resultSpell)?.displayName || opt}</div>
+            <h3>🧪 Котёл</h3>
+
+            {/* Доступные рецепты */}
+            {cauldronUI.available.length > 0 && (
+              <>
+                <div style={{ fontSize: '12px', color: '#4f4', marginBottom: '8px', textAlign: 'center' }}>
+                  ✓ Можно приготовить:
+                </div>
+                <div className="craft-options">
+                  {cauldronUI.available.map((recipeId, i) => {
+                    const recipe = getRecipe(recipeId);
+                    if (!recipe) return null;
+                    return (
+                      <div key={recipeId} className={`craft-option ${i === cauldronUI.selected ? 'selected' : ''}`}
+                        onClick={() => {
+                          // Навигация через выбор
+                          if (gameRef.current) {
+                            // Выбрать этот рецепт
+                            while (cauldronUI.selected !== i) {
+                              if (cauldronUI.selected < i) {
+                                gameRef.current.selectCauldronRecipe('next');
+                              } else {
+                                gameRef.current.selectCauldronRecipe('prev');
+                              }
+                              break;
+                            }
+                          }
+                        }}>
+                        <div style={{ fontWeight: 'bold' }}>{getSpell(recipe.resultSpell)?.displayName || recipeId}</div>
                         <div style={{ fontSize: '10px', color: '#aaa', marginTop: '4px' }}>
                           {recipe.ingredients.map(ing => `${getHerb(ing.herb)?.displayName || ing.herb} ×${ing.amount}`).join(', ')}
                         </div>
-                      </>
-                    ) : (
-                      <div>{opt === `empty(${i})` ? `Пусто (${i + 1})` : getSpell(opt.split('(')[0])?.displayName || opt}</div>
-                    )}
-                  </div>
-                );
-              })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Недоступные рецепты */}
+            {cauldronUI.unavailable.length > 0 && (
+              <>
+                <div style={{ fontSize: '12px', color: '#f88', marginTop: '12px', marginBottom: '8px', textAlign: 'center' }}>
+                  ✗ Не хватает ингредиентов:
+                </div>
+                <div className="craft-options">
+                  {cauldronUI.unavailable.map((recipeId) => {
+                    const recipe = getRecipe(recipeId);
+                    if (!recipe) return null;
+                    return (
+                      <div key={recipeId} className="craft-option" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
+                        <div>{getSpell(recipe.resultSpell)?.displayName || recipeId}</div>
+                        <div style={{ fontSize: '10px', color: '#aaa', marginTop: '4px' }}>
+                          {recipe.ingredients.map(ing => {
+                            const have = herbs[ing.herb] || 0;
+                            const need = ing.amount;
+                            const color = have >= need ? '#8f8' : '#f88';
+                            return <span key={ing.herb} style={{ color }}>{getHerb(ing.herb)?.displayName || ing.herb} {have}/{need}</span>;
+                          }).reduce((prev: React.ReactNode, curr: React.ReactNode, i: number) => {
+                            return i === 0 ? [curr] : [...(Array.isArray(prev) ? prev : [prev]), ', ', curr];
+                          }, [])}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {cauldronUI.available.length === 0 && cauldronUI.unavailable.length === 0 && (
+              <div style={{ textAlign: 'center', color: '#888' }}>Нет доступных рецептов</div>
+            )}
+
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '16px', textAlign: 'center' }}>
+              ← → выбор | Space — приготовить | F — закрыть
             </div>
-            <button className="craft-cancel" onClick={() => gameRef.current?.handleCraftChoice(-1)}>Отменить</button>
+          </div>
+        )}
+
+        {/* Craft choice dialog - переполнение слотов */}
+        {screen === 'craftChoice' && craftChoice && (
+          <div className="craft-choice">
+            <h3>Заменить слот?</h3>
+            <div className="craft-options">
+              {craftChoice.options.map((opt, i) => (
+                <div key={i} className={`craft-option ${i === craftChoice.selected ? 'selected' : ''}`}
+                  onClick={() => gameRef.current?.handleCraftChoice(i)}>
+                  <div>{opt.startsWith('empty') ? `Пусто (${i + 1})` : getSpell(opt.split('(')[0])?.displayName || opt}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '12px', textAlign: 'center' }}>
+              ← → выбор | Enter — подтвердить
+            </div>
           </div>
         )}
 
@@ -310,8 +408,9 @@ function App() {
               <div style={{ fontSize: '13px', lineHeight: '2' }}>
                 <div><b>Клавиатура:</b></div>
                 <div>WASD / Стрелки — движение</div>
-                <div>Space — каст заклинания</div>
-                <div>F — варить у котла / отмена</div>
+                <div>Space — каст заклинания / приготовить</div>
+                <div>F — открыть/закрыть котёл</div>
+                <div>← → (в котле) — выбор рецепта</div>
                 <div>Q / E — предыдущий / следующий слот</div>
                 <div>1 / 2 / 3 — прямой выбор слота</div>
                 <div>Esc — пауза</div>

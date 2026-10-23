@@ -1,7 +1,7 @@
 // Основные типы игры
 
 export type MoveDirection = 'none' | 'up' | 'down' | 'left' | 'right';
-export type Phase = 'menu' | 'playing' | 'paused' | 'craftChoice' | 'finished';
+export type Phase = 'menu' | 'playing' | 'paused' | 'cauldronUI' | 'craftChoice' | 'finished';
 export type SpellType = 'attack' | 'heal' | 'defense';
 export type MatchMode = 'deathmatch' | 'timed';
 export type HerbShape = 'flower' | 'leaf' | 'root';

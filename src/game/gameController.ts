@@ -11,7 +11,7 @@ import { KeyboardInput, GamepadInput, LocalPlayerInput } from '../input/input';
 import { AIInput } from '../ai/aiInput';
 import type { Grid } from '../navigation/grid';
 
-export type Screen = 'menu' | 'playing' | 'paused' | 'craftChoice' | 'result';
+export type Screen = 'menu' | 'playing' | 'paused' | 'cauldronUI' | 'craftChoice' | 'result';
 
 export interface GameCallbacks {
   onScreenChange: (screen: Screen) => void;
@@ -21,6 +21,7 @@ export interface GameCallbacks {
   onTimerChange: (timeLeft: number, mode: MatchMode) => void;
   onCraftProgress: (progress: number, duration: number) => void;
   onCraftChoice: (options: string[], selected: number) => void;
+  onCauldronUI: (available: string[], unavailable: string[], selected: number) => void;
   onResult: (result: MatchResult, stats: { hp: number; damage: number; herbs: number }[]) => void;
   onCooldownChange: (cooldowns: Record<string, number>, gcd: number) => void;
   onShieldChange: (shieldTime: number) => void;
@@ -278,27 +279,7 @@ export class GameController {
   handleCraftChoice(idx: number): void {
     if (!this.state || this.state.phase !== 'craftChoice') return;
 
-    if (this.state.craftChoiceType === 'recipe') {
-      // Choosing which recipe to craft
-      if (idx >= 0 && idx < this.state.craftChoiceOptions.length) {
-        const recipeId = this.state.craftChoiceOptions[idx];
-        const recipe = RECIPES.find(r => r.id === recipeId);
-        if (recipe) {
-          const wizard = this.state.wizards[this.state.craftChoiceWizard!];
-          const reserved: Record<string, number> = {};
-          for (const ing of recipe.ingredients) {
-            reserved[ing.herb] = ing.amount;
-          }
-          wizard.craft = {
-            recipeId: recipe.id,
-            progress: 0,
-            duration: Math.max(1.0, recipe.craftTime),
-            reservedIngredients: reserved,
-          };
-          this.bus.emit({ type: EVT.CRAFT_STARTED, data: { wizardId: wizard.id, recipeId: recipe.id } });
-        }
-      }
-    } else if (this.state.craftChoiceType === 'slot') {
+    if (this.state.craftChoiceType === 'slot') {
       // Choosing which slot to replace (overflow)
       const wizard = this.state.wizards[0];
       const newSpellId = this.state.craftChoiceRecipeId;
@@ -306,13 +287,157 @@ export class GameController {
         wizard.slots[idx] = { spellId: newSpellId, charges: 1 };
         this.bus.emit({ type: EVT.SPELLS_CHANGED, data: { wizardId: 0 } });
       }
-      // If idx < 0 (cancel), spell is lost
     }
 
     this.state.phase = 'playing';
     this.state.craftChoiceWizard = null;
     this.state.craftChoiceRecipeId = null;
     this.callbacks.onScreenChange('playing');
+  }
+
+  // Открыть/закрыть интерфейс котла
+  toggleCauldronUI(): void {
+    if (!this.state) return;
+    const wizard = this.state.wizards[0];
+    if (wizard.dead) return;
+
+    const cauldronPos = { x: (4 + 0.5) * 32, y: (9 + 0.5) * 32 }; // playerCauldron
+    const dx = wizard.position.x - cauldronPos.x;
+    const dy = wizard.position.y - cauldronPos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist > 48) return; // Не у котла
+
+    if (this.state.phase === 'cauldronUI') {
+      // Закрыть интерфейс
+      this.state.phase = 'playing';
+      this.callbacks.onScreenChange('playing');
+    } else if (this.state.phase === 'playing') {
+      // Открыть интерфейс
+      this.state.phase = 'cauldronUI';
+      this.updateCauldronUI();
+      this.callbacks.onScreenChange('cauldronUI');
+    }
+  }
+
+  // Обновить список рецептов в интерфейсе котла
+  private updateCauldronUI(): void {
+    if (!this.state) return;
+    const wizard = this.state.wizards[0];
+
+    const available: string[] = [];
+    const unavailable: string[] = [];
+
+    for (const recipe of RECIPES) {
+      let canCraft = true;
+      for (const ing of recipe.ingredients) {
+        if ((wizard.herbs[ing.herb] || 0) < ing.amount) {
+          canCraft = false;
+          break;
+        }
+      }
+      if (canCraft) {
+        available.push(recipe.id);
+      } else {
+        unavailable.push(recipe.id);
+      }
+    }
+
+    this.callbacks.onCauldronUI(available, unavailable, available.length > 0 ? 0 : -1);
+  }
+
+  // Выбрать рецепт в интерфейсе котла
+  selectCauldronRecipe(direction: 'prev' | 'next'): void {
+    if (!this.state || this.state.phase !== 'cauldronUI') return;
+
+    const wizard = this.state.wizards[0];
+    const available: string[] = [];
+    const unavailable: string[] = [];
+    for (const recipe of RECIPES) {
+      let canCraft = true;
+      for (const ing of recipe.ingredients) {
+        if ((wizard.herbs[ing.herb] || 0) < ing.amount) {
+          canCraft = false;
+          break;
+        }
+      }
+      if (canCraft) {
+        available.push(recipe.id);
+      } else {
+        unavailable.push(recipe.id);
+      }
+    }
+
+    if (available.length === 0) return;
+
+    let currentIdx = this.state.craftChoiceSelected;
+    if (direction === 'next') {
+      currentIdx = (currentIdx + 1) % available.length;
+    } else {
+      currentIdx = (currentIdx - 1 + available.length) % available.length;
+    }
+
+    this.state.craftChoiceSelected = currentIdx;
+    this.callbacks.onCauldronUI(available, unavailable, currentIdx);
+  }
+
+  // Приготовить выбранное заклинание
+  craftSelectedSpell(): void {
+    if (!this.state || this.state.phase !== 'cauldronUI') return;
+
+    const wizard = this.state.wizards[0];
+    if (wizard.craft) return; // Уже варит
+
+    const available: string[] = [];
+    for (const recipe of RECIPES) {
+      let canCraft = true;
+      for (const ing of recipe.ingredients) {
+        if ((wizard.herbs[ing.herb] || 0) < ing.amount) {
+          canCraft = false;
+          break;
+        }
+      }
+      if (canCraft) available.push(recipe.id);
+    }
+
+    if (available.length === 0) return;
+
+    const recipeId = available[this.state.craftChoiceSelected];
+    const recipe = RECIPES.find(r => r.id === recipeId);
+    if (!recipe) return;
+
+    // Начать крафт
+    const reserved: Record<string, number> = {};
+    for (const ing of recipe.ingredients) {
+      reserved[ing.herb] = ing.amount;
+    }
+    wizard.craft = {
+      recipeId: recipe.id,
+      progress: 0,
+      duration: Math.max(1.0, recipe.craftTime),
+      reservedIngredients: reserved,
+    };
+
+    this.bus.emit({ type: EVT.CRAFT_STARTED, data: { wizardId: wizard.id, recipeId: recipe.id } });
+
+    // Закрыть интерфейс
+    this.state.phase = 'playing';
+    this.callbacks.onScreenChange('playing');
+  }
+
+  // Проверить, нужно ли закрыть интерфейс котла (отошли от котла)
+  private checkCauldronDistance(): void {
+    if (!this.state || this.state.phase !== 'cauldronUI') return;
+    const wizard = this.state.wizards[0];
+    const cauldronPos = { x: (4 + 0.5) * 32, y: (9 + 0.5) * 32 };
+    const dx = wizard.position.x - cauldronPos.x;
+    const dy = wizard.position.y - cauldronPos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist > 48) {
+      this.state.phase = 'playing';
+      this.callbacks.onScreenChange('playing');
+    }
   }
 
   private gameLoop = (): void => {
@@ -334,7 +459,7 @@ export class GameController {
       return;
     }
 
-    if (this.state.phase === 'playing') {
+    if (this.state.phase === 'playing' || this.state.phase === 'cauldronUI') {
       this.accumulator += frameTime;
       let steps = 0;
       while (this.accumulator >= STEP && steps < 5) {
@@ -357,10 +482,26 @@ export class GameController {
           playerInput.cancel = false;
         }
 
-        // Handle pause
-        if (playerInput.pause && steps === 0) {
+        // Handle pause (только в playing)
+        if (playerInput.pause && steps === 0 && this.state.phase === 'playing') {
           this.pause();
           return;
+        }
+
+        // F - открыть/закрыть интерфейс котла (только в playing и на первом шаге)
+        if (playerInput.interact && steps === 0 && this.state.phase === 'playing') {
+          this.toggleCauldronUI();
+          playerInput.interact = false; // Не передавать в симуляцию
+        }
+
+        // В режиме cauldronUI игрок не может двигаться/кастовать
+        if (this.state.phase === 'cauldronUI') {
+          playerInput.move = 'none';
+          playerInput.cast = false;
+          playerInput.interact = false;
+          playerInput.nextSlot = false;
+          playerInput.prevSlot = false;
+          playerInput.selectSlot = null;
         }
 
         step(this.state, [playerInput, aiInputFrame], this.grid, this.bus, this.rng, STEP);
@@ -389,7 +530,34 @@ export class GameController {
       }
     }
 
-    // Handle craft choice input
+    // Handle cauldron UI input
+    if (this.state.phase === 'cauldronUI') {
+      const input = this.localInput.read(this.state.tick);
+
+      // Проверить расстояние до котла
+      this.checkCauldronDistance();
+
+      if (this.state.phase === 'cauldronUI') {
+        // Навигация по рецептам
+        if (input.move === 'left' || input.prevSlot) {
+          this.selectCauldronRecipe('prev');
+        }
+        if (input.move === 'right' || input.nextSlot) {
+          this.selectCauldronRecipe('next');
+        }
+        // Space - приготовить заклинание
+        if (input.cast) {
+          this.craftSelectedSpell();
+        }
+        // F - закрыть интерфейс
+        if (input.interact) {
+          this.state.phase = 'playing';
+          this.callbacks.onScreenChange('playing');
+        }
+      }
+    }
+
+    // Handle craft choice input (overflow)
     if (this.state.phase === 'craftChoice') {
       const input = this.localInput.read(this.state.tick);
       if (input.move === 'left' || input.prevSlot) {
@@ -402,12 +570,6 @@ export class GameController {
       }
       if (input.confirm) {
         this.handleCraftChoice(this.state.craftChoiceSelected);
-      }
-      if (input.back || input.cancel) {
-        // Cancel - lose the spell
-        this.state.phase = 'playing';
-        this.state.craftChoiceWizard = null;
-        this.callbacks.onScreenChange('playing');
       }
     }
 
