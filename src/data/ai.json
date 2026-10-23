@@ -1,0 +1,13 @@
+{
+  "ai": {
+    "fleeHealthThreshold": 0.3,
+    "detectionRadius": 12,
+    "fieldOfView": 270,
+    "attackRange": 10,
+    "minRange": 4,
+    "decisionInterval": 0.3,
+    "forgetPlayerTime": 3,
+    "pathReplanInterval": 0.4,
+    "stuckTimeout": 1.2
+  }
+}
