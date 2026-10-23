@@ -59,11 +59,14 @@ export class GameController {
     this.canvas.width = MAP_WIDTH;
     this.canvas.height = MAP_HEIGHT;
     this.canvas.tabIndex = 0;
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.top = '0';
+    this.canvas.style.left = '0';
+    this.canvas.style.width = '100%';
+    this.canvas.style.height = '100%';
     this.canvas.style.display = 'block';
-    this.canvas.style.margin = '0 auto';
-    this.canvas.style.maxWidth = '100%';
-    this.canvas.style.maxHeight = '100%';
     this.canvas.style.imageRendering = 'pixelated';
+    this.canvas.style.zIndex = '1';
     container.appendChild(this.canvas);
 
     this.renderer = new Renderer(this.canvas);
@@ -186,6 +189,8 @@ export class GameController {
   }
 
   private resizeCanvas(): void {
+    // Canvas keeps its internal resolution (MAP_WIDTH × MAP_HEIGHT)
+    // CSS scales it to fit the container while preserving aspect ratio
     const containerWidth = this.container.clientWidth;
     const containerHeight = this.container.clientHeight;
     const aspect = MAP_WIDTH / MAP_HEIGHT;
@@ -195,8 +200,11 @@ export class GameController {
       h = containerHeight;
       w = h * aspect;
     }
+    // Position canvas centered in container
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
+    this.canvas.style.left = `${(containerWidth - w) / 2}px`;
+    this.canvas.style.top = `${(containerHeight - h) / 2}px`;
   }
 
   setMode(mode: MatchMode): void { this.mode = mode; }

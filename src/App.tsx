@@ -4,64 +4,6 @@ import type { MatchMode, MatchResult, GameSettings } from './core/types';
 import { MAP_WIDTH, MAP_HEIGHT } from './core/constants';
 import { RECIPES, getSpell, getRecipe, getHerb, HERBS } from './core/simulation';
 
-// Стили
-const styles = `
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  .game-root { width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0d0d1a; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; position: relative; }
-  .game-container { position: relative; width: 100%; max-width: 1024px; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
-  .hud { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 10; }
-  .hud-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 16px; }
-  .hp-bar-container { width: 200px; }
-  .hp-bar-label { font-size: 11px; margin-bottom: 2px; text-shadow: 1px 1px 2px #000; }
-  .hp-bar { height: 16px; background: #333; border-radius: 8px; overflow: hidden; border: 1px solid #555; }
-  .hp-bar-fill { height: 100%; transition: width 0.3s ease; border-radius: 8px; }
-  .hp-bar-fill.player { background: linear-gradient(90deg, #4488ff, #66aaff); }
-  .hp-bar-fill.enemy { background: linear-gradient(270deg, #ff4444, #ff6666); }
-  .timer { font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px #000; text-align: center; min-width: 80px; }
-  .hud-bottom { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-end; padding: 8px 16px; }
-  .spell-bar { display: flex; gap: 6px; }
-  .spell-slot { width: 48px; height: 48px; background: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; position: relative; }
-  .spell-slot.active { border-color: #ffcc00; box-shadow: 0 0 8px rgba(255,204,0,0.5); }
-  .spell-slot.empty { opacity: 0.4; }
-  .spell-slot .charges { font-size: 14px; font-weight: bold; }
-  .spell-slot .spell-icon { width: 20px; height: 20px; border-radius: 50%; margin-bottom: 2px; }
-  .spell-slot .cd-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-  .herb-panel { display: flex; gap: 8px; background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 8px; }
-  .herb-item { display: flex; align-items: center; gap: 4px; font-size: 13px; }
-  .herb-dot { width: 12px; height: 12px; border-radius: 50%; }
-  .controls-hint { font-size: 10px; color: #888; text-align: center; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); }
-  .shield-indicator { position: absolute; top: 60px; left: 16px; font-size: 12px; color: #ffcc00; text-shadow: 1px 1px 2px #000; }
-  /* Меню */
-  .menu-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; pointer-events: all; }
-  .menu-title { font-size: 48px; font-weight: bold; margin-bottom: 32px; text-shadow: 0 0 20px rgba(100,150,255,0.5); }
-  .menu-btn { display: block; width: 260px; padding: 12px 24px; margin: 8px 0; font-size: 18px; background: #2a2a4a; border: 2px solid #4a4a7a; border-radius: 8px; color: #eee; cursor: pointer; text-align: center; transition: all 0.2s; }
-  .menu-btn:hover, .menu-btn.focused { background: #3a3a6a; border-color: #6a6aaa; transform: scale(1.02); }
-  .menu-btn.selected { background: #4a4a8a; border-color: #ffcc00; }
-  .menu-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; font-size: 16px; }
-  .menu-row label { min-width: 120px; text-align: right; }
-  .menu-row .value { color: #ffcc00; min-width: 80px; text-align: center; }
-  /* Результат */
-  .result-title { font-size: 56px; font-weight: bold; margin-bottom: 16px; }
-  .result-title.win { color: #44ff44; }
-  .result-title.lose { color: #ff4444; }
-  .result-title.draw { color: #ffcc00; }
-  .result-stats { font-size: 14px; margin-bottom: 24px; color: #aaa; }
-  /* Крафт выбор */
-  .craft-choice { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20,20,40,0.95); border: 2px solid #6a6aaa; border-radius: 12px; padding: 24px; z-index: 100; pointer-events: all; }
-  .craft-choice h3 { margin-bottom: 16px; text-align: center; font-size: 18px; }
-  .craft-options { display: flex; gap: 12px; margin-bottom: 16px; }
-  .craft-option { padding: 12px 16px; background: #2a2a4a; border: 2px solid #4a4a7a; border-radius: 8px; cursor: pointer; text-align: center; min-width: 100px; }
-  .craft-option.selected { border-color: #ffcc00; background: #3a3a6a; }
-  .craft-cancel { display: block; margin: 0 auto; padding: 8px 24px; background: #4a2a2a; border: 1px solid #6a4a4a; border-radius: 6px; color: #eee; cursor: pointer; }
-  /* Настройки */
-  .settings-panel { background: rgba(20,20,40,0.95); border: 2px solid #4a4a7a; border-radius: 12px; padding: 24px; min-width: 320px; }
-  .settings-panel h3 { margin-bottom: 16px; text-align: center; }
-  .setting-row { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; }
-  .setting-row label { font-size: 14px; }
-  .setting-row input[type="range"] { width: 120px; }
-  .setting-row input[type="checkbox"] { width: 18px; height: 18px; }
-`;
-
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<GameController | null>(null);
@@ -190,7 +132,6 @@ function App() {
 
   return (
     <div className="game-root">
-      <style>{styles}</style>
 
       {/* Game container */}
       <div className="game-container" ref={containerRef}>
